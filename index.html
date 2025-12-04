@@ -384,12 +384,14 @@
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 1px;
+            white-space: nowrap; 
         }
 
         td {
             padding: 18px;
             border-bottom: 1px solid var(--border-subtle);
             font-weight: 300;
+            vertical-align: middle;
         }
 
         tr:last-child td { border-bottom: none; }
@@ -405,6 +407,8 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            white-space: nowrap; 
+            display: inline-block;
         }
 
         .status-coming-soon { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
@@ -418,6 +422,7 @@
             color: white;
             font-size: 0.8rem;
             transition: var(--transition);
+            white-space: nowrap;
         }
         
         .action-btn-small:hover { background: white; color: black; }
@@ -555,7 +560,7 @@
                             </div>
                         </div>
                         <button id="whatsappBtn" class="premium-btn" style="background: #25D366; color: white; border: none;" disabled>
-                            Save & Open WhatsApp
+                            Save & Share via WhatsApp
                         </button>
                     </div>
                 </div>
@@ -880,7 +885,7 @@
             document.getElementById('whatsappBtn').disabled = false;
         }
 
-        // WhatsApp Share & Download Logic
+        // WhatsApp Share & Download Logic (Auto-Reset)
         document.getElementById('whatsappBtn').addEventListener('click', () => {
             const btn = document.getElementById('whatsappBtn');
             const originalText = btn.textContent;
@@ -910,7 +915,7 @@
                 link.click();
                 document.body.removeChild(link);
                 
-                // 2. Open WhatsApp (Delayed to allow download to start)
+                // 2. Open WhatsApp & Reset (Delayed to allow download to start)
                 setTimeout(() => {
                     const phone = document.getElementById('ticketPhone').textContent.replace(/\D/g,'');
                     const name = document.getElementById('ticketName').textContent;
@@ -919,8 +924,20 @@
                     // Use location.href to bypass pop-up blockers on mobile
                     window.location.href = `https://wa.me/${phone}?text=${message}`;
                     
+                    // --- RESET LOGIC ---
                     btn.textContent = originalText;
-                    btn.disabled = false;
+                    btn.disabled = true; // Disable until new ticket generated
+                    
+                    // 1. Clear Ticket Preview Data
+                    document.getElementById('ticketName').textContent = '--';
+                    document.getElementById('ticketAgeGender').textContent = '-- / --';
+                    document.getElementById('ticketPhone').textContent = '--';
+                    document.getElementById('ticketSerial').textContent = 'ID: --';
+                    document.getElementById('qrcode').innerHTML = '';
+                    
+                    // 2. Clear Input Form
+                    document.getElementById('ticketForm').reset();
+                    
                 }, 1500); 
             }).catch(err => {
                 console.error(err);
@@ -1048,24 +1065,31 @@
         }
         
         function playBeep() { 
-             const ctx = new (window.AudioContext || window.webkitAudioContext)();
-             const osc = ctx.createOscillator();
-             osc.connect(ctx.destination);
-             osc.frequency.value = 800;
-             osc.start();
-             setTimeout(() => osc.stop(), 100);
+             const audio = new Audio('success.mp3');
+             audio.play().catch(e => {
+                 console.log("Custom sound not found, using fallback beep.");
+                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                 const osc = ctx.createOscillator();
+                 osc.connect(ctx.destination);
+                 osc.frequency.value = 800;
+                 osc.start();
+                 setTimeout(() => osc.stop(), 100);
+             });
         }
+        
         function playError() {
-             const ctx = new (window.AudioContext || window.webkitAudioContext)();
-             const osc = ctx.createOscillator();
-             osc.type = 'sawtooth';
-             osc.connect(ctx.destination);
-             osc.frequency.value = 150;
-             osc.start();
-             setTimeout(() => osc.stop(), 300);
+             const audio = new Audio('error.mp3');
+             audio.play().catch(e => {
+                 console.log("Custom sound not found, using fallback error.");
+                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                 const osc = ctx.createOscillator();
+                 osc.type = 'sawtooth';
+                 osc.connect(ctx.destination);
+                 osc.frequency.value = 150;
+                 osc.start();
+                 setTimeout(() => osc.stop(), 300);
+             });
         }
     </script>
 </body>
 </html>
-
-
