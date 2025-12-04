@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Event Ticketing System - Admin Only</title>
+    <title>Event Ticketing System</title>
+    
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f0f0f">
     
     <!-- Premium Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,6 +15,14 @@
     
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Export Libraries -->
+    <!-- SheetJS for Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF for PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- jsPDF AutoTable for PDF Tables -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
     <style>
         :root {
@@ -42,7 +53,6 @@
             line-height: 1.6;
             min-height: 100vh;
             overflow-x: hidden;
-            /* Subtly mix the gradient with the stars */
             background-image: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.08), transparent 25%), 
                               radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.03), transparent 25%);
         }
@@ -54,7 +64,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: -1; /* Behind everything */
+            z-index: -1;
             pointer-events: none;
             overflow: hidden;
         }
@@ -107,7 +117,7 @@
 
         .search-icon {
             position: absolute;
-            left: 15px;
+            left: 8px;
             top: 50%;
             transform: translateY(-50%);
             color: var(--text-muted);
@@ -116,7 +126,7 @@
 
         .search-input {
             width: 100%;
-            padding: 12px 12px 12px 45px;
+            padding: 12px 12px 12px 30px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-subtle);
             border-radius: 12px;
@@ -137,7 +147,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 0 20px;
+            padding: 0 10px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-subtle);
             border-radius: 12px;
@@ -719,7 +729,7 @@
 
         /* Updated Export Button Style */
         .export-btn-small {
-            padding: 6px 8px;
+            padding: 6px 12px;
             border-radius: 8px;
             background: rgba(16, 185, 129, 0.15);
             color: var(--success-green);
@@ -736,6 +746,15 @@
         .export-btn-small:hover {
             background: var(--success-green);
             color: black;
+        }
+
+        .export-btn-small:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            filter: grayscale(1);
+            background: rgba(255,255,255,0.05);
+            color: #666;
+            border-color: #333;
         }
 
         #scanner-container {
@@ -788,7 +807,7 @@
             100% { background-position: 0 100%; }
         }
 
-        /* --- NEW Custom Modal --- */
+        /* --- Modals --- */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -866,13 +885,23 @@
             box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
         }
 
+        .modal-btn.success {
+            background: var(--success-green);
+            color: black;
+        }
+
+        .modal-btn.success:hover {
+            background: #059669;
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+        }
+
         @media (max-width: 768px) {
             .form-and-ticket { grid-template-columns: 1fr; }
             header h1 { font-size: 2.2rem; }
             .login-box { padding: 2rem; }
             .nav-btn { flex: 1; text-align: center; font-size: 0.9rem; }
             #toast-container { right: 20px; left: 20px; bottom: 20px; }
-            .search-filter-container { flex-direction: column; }
+            .search-filter-container { flex-direction: row; gap: 5px; }
         }
     </style>
 </head>
@@ -901,6 +930,35 @@
         </div>
     </div>
 
+    <!-- NEW: Export Modal -->
+    <div id="export-modal" class="modal-overlay">
+        <div class="modal-box" style="max-width: 450px;">
+            <h3>Export Data</h3>
+            <p style="margin-bottom: 5px;">Configure your download below.</p>
+            <p id="export-count-msg" style="color: var(--success-green); font-size: 0.9rem; margin-bottom: 25px;">Ready to export 0 items.</p>
+            
+            <div style="text-align: left; margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.8rem; color: #888; margin-bottom: 5px; text-transform: uppercase;">File Name</label>
+                <input type="text" id="exportFileName" class="premium-input" placeholder="guest_list" style="margin-bottom: 15px;">
+                
+                <label style="display: block; font-size: 0.8rem; color: #888; margin-bottom: 5px; text-transform: uppercase;">File Format</label>
+                <select id="exportFormat" class="premium-input">
+                    <option value="csv">Comma Separated Values (.csv)</option>
+                    <option value="xlsx">Excel Workbook (.xlsx)</option>
+                    <option value="pdf">PDF Document (.pdf)</option>
+                    <option value="txt">Text File (.txt)</option>
+                    <option value="doc">Word Document (.doc)</option>
+                    <option value="json">JSON Data (.json)</option>
+                </select>
+            </div>
+
+            <div class="modal-actions">
+                <button id="cancelExport" class="modal-btn secondary">Cancel</button>
+                <button id="confirmExport" class="modal-btn success">Download</button>
+            </div>
+        </div>
+    </div>
+
     <div id="login-overlay">
         <div class="login-box">
             <h2>Authorized Access</h2>
@@ -925,7 +983,7 @@
                 <button class="nav-btn active" data-tab="create">Issue Ticket</button>
                 <button class="nav-btn" data-tab="booked">Guest List</button>
                 <button class="nav-btn" data-tab="scanner">Scanner</button>
-                <button class="nav-btn" data-tab="settings">Config</button>
+                <button class="nav-btn" data-tab="settings">Configuration</button>
             </nav>
         </header>
 
@@ -954,7 +1012,7 @@
                         <div id="ticketTemplate">
                             <div class="ticket-content-wrapper">
                                 <div class="ticket-header">
-                                    <h3>VIP Access Pass</h3>
+                                    <h3>Entry Pass</h3>
                                     <p id="eventNamePlace">Event Details Loading...</p>
                                 </div>
                                 <div class="ticket-body">
@@ -983,7 +1041,7 @@
                             </div>
                         </div>
                         <button id="whatsappBtn" class="premium-btn" style="background: #25D366; color: white; border: none;" disabled>
-                            Save & Open WhatsApp
+                            Save & Share via WhatsApp
                         </button>
                     </div>
                 </div>
@@ -1004,7 +1062,7 @@
                     <div class="search-filter-container">
                         <div class="search-box-wrapper">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                            <input type="text" id="searchGuestInput" class="search-input" placeholder="Search by name or phone...">
+                            <input type="text" id="searchGuestInput" class="search-input" placeholder="Search name or phone...">
                         </div>
                         <div style="position: relative;">
                             <button id="filterSortBtn" class="filter-btn">
@@ -1035,9 +1093,9 @@
                             <label for="selectAllCheckbox" style="margin-left: 10px; font-size: 0.9rem;">Select All</label>
                             <span id="selectionCount" style="margin-left: 15px; color: var(--accent-secondary); font-size: 0.9rem;">(0 selected)</span>
                         </div>
-                        <!-- Export Button inside Selection Bar -->
-                        <button id="exportCsvBtn" class="export-btn-small">
-                            <i class="fa-solid fa-file-csv"></i> Export CSV
+                        <!-- Export Button inside Selection Bar (Disabled by default) -->
+                        <button id="exportTriggerBtn" class="export-btn-small" disabled>
+                            <i class="fa-solid fa-file-export"></i> Export
                         </button>
                     </div>
 
@@ -1157,7 +1215,7 @@
                 container.appendChild(star);
             }
         }
-        createStars(); // Initialize stars immediately
+        createStars(); 
 
         // --- SEARCH & FILTER STATE ---
         let searchTerm = '';
@@ -1201,56 +1259,219 @@
         const confirmDeleteBtn = document.getElementById('confirmDelete');
         let pendingDeleteIds = [];
 
+        // Export Modal Elements
+        const exportModal = document.getElementById('export-modal');
+        const exportFileName = document.getElementById('exportFileName');
+        const exportFormat = document.getElementById('exportFormat');
+        const cancelExportBtn = document.getElementById('cancelExport');
+        const confirmExportBtn = document.getElementById('confirmExport');
+        const exportTriggerBtn = document.getElementById('exportTriggerBtn');
+        const exportCountMsg = document.getElementById('export-count-msg');
+
         // Search & Filter DOM
         const searchInput = document.getElementById('searchGuestInput');
         const filterSortBtn = document.getElementById('filterSortBtn');
         const filterDropdown = document.getElementById('filterDropdown');
-        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        
+        // --- EXPORT FUNCTIONALITY ---
+        
+        // Open Modal
+        exportTriggerBtn.addEventListener('click', () => {
+            // Count items
+            const count = document.querySelectorAll('.ticket-checkbox:checked').length;
+            if(count === 0) return; // Extra safety check
 
-        // --- EXPORT FUNCTION ---
-        exportCsvBtn.addEventListener('click', () => {
+            exportCountMsg.textContent = `Ready to export ${count} item${count !== 1 ? 's' : ''}.`;
+            
+            // Set default date in filename
+            const today = new Date().toISOString().slice(0, 10).replace(/-/g, '_');
+            exportFileName.value = `guest_list_${today}`;
+            exportModal.style.display = 'flex';
+        });
+
+        // Close Modal
+        cancelExportBtn.addEventListener('click', () => {
+            exportModal.style.display = 'none';
+        });
+
+        // Perform Export
+        confirmExportBtn.addEventListener('click', () => {
+            const filename = exportFileName.value || 'guest_list';
+            const format = exportFormat.value;
+
             // Check if any rows are selected
             const selectedIds = [];
             document.querySelectorAll('.ticket-checkbox:checked').forEach(cb => {
                 selectedIds.push(cb.closest('tr').dataset.id);
             });
 
+            // Strict Selection Logic for Export
             let listToExport = [];
-
             if (selectedIds.length > 0) {
-                // Export only selected
                 listToExport = bookedTickets.filter(t => selectedIds.includes(t.id));
-                showToast("Exporting Selection", `${listToExport.length} guests selected.`);
             } else {
-                // Export all currently visible (filtered)
-                listToExport = currentFilteredTickets;
-                showToast("Exporting List", `Exporting ${listToExport.length} guests from current view.`);
+                // This shouldn't be reached if button is disabled, but good for safety
+                exportModal.style.display = 'none';
+                return alert("No data selected to export.");
             }
 
-            if (listToExport.length === 0) {
-                return alert("No data to export.");
+            // --- FORMAT SWITCHER ---
+            switch(format) {
+                case 'csv':
+                    exportCSV(listToExport, filename);
+                    break;
+                case 'xlsx':
+                    exportXLSX(listToExport, filename);
+                    break;
+                case 'pdf':
+                    exportPDF(listToExport, filename);
+                    break;
+                case 'txt':
+                    exportTXT(listToExport, filename);
+                    break;
+                case 'json':
+                    exportJSON(listToExport, filename);
+                    break;
+                case 'doc':
+                    exportDOC(listToExport, filename);
+                    break;
             }
 
-            // CSV Creation
+            exportModal.style.display = 'none';
+            showToast("Export Complete", `${listToExport.length} records saved as .${format}`);
+        });
+
+        // 1. CSV
+        function exportCSV(data, filename) {
             let csvContent = "data:text/csv;charset=utf-8,";
-            // Headers
             csvContent += "Guest Name,Age,Gender,Phone,Status,Ticket ID,Entry Time\n";
-
-            listToExport.forEach(row => {
+            data.forEach(row => {
                 const scannedTime = row.scannedAt ? new Date(row.scannedAt).toLocaleTimeString() : "";
-                const cleanName = row.name.replace(/,/g, ""); // Remove commas to prevent CSV breakage
+                const cleanName = row.name.replace(/,/g, ""); 
                 const rowStr = `${cleanName},${row.age},${row.gender},${row.phone},${row.status},${row.id},${scannedTime}`;
                 csvContent += rowStr + "\n";
             });
+            downloadFile(encodeURI(csvContent), `${filename}.csv`);
+        }
 
-            const encodedUri = encodeURI(csvContent);
+        // 2. XLSX (Excel)
+        function exportXLSX(data, filename) {
+            const worksheetData = data.map(row => ({
+                "Guest Name": row.name,
+                "Age": row.age,
+                "Gender": row.gender,
+                "Phone": row.phone,
+                "Status": row.status,
+                "Ticket ID": row.id,
+                "Entry Time": row.scannedAt ? new Date(row.scannedAt).toLocaleTimeString() : ""
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(worksheetData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Guests");
+            XLSX.writeFile(wb, `${filename}.xlsx`);
+        }
+
+        // 3. PDF
+        function exportPDF(data, filename) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.text("Event Guest List", 14, 20);
+            doc.setFontSize(10);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 26);
+            
+            const tableColumn = ["Name", "Age", "Gender", "Phone", "Status", "Entry Time"];
+            const tableRows = [];
+
+            data.forEach(row => {
+                const ticketData = [
+                    row.name,
+                    row.age,
+                    row.gender,
+                    row.phone,
+                    row.status.toUpperCase(),
+                    row.scannedAt ? new Date(row.scannedAt).toLocaleTimeString() : "--"
+                ];
+                tableRows.push(ticketData);
+            });
+
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 32,
+            });
+            
+            doc.save(`${filename}.pdf`);
+        }
+
+        // 4. TXT
+        function exportTXT(data, filename) {
+            let content = `GUEST LIST EXPORT - ${new Date().toLocaleString()}\n\n`;
+            data.forEach((row, i) => {
+                content += `${i+1}. ${row.name.toUpperCase()} \n`;
+                content += `   Details: ${row.age} / ${row.gender}\n`;
+                content += `   Phone: ${row.phone}\n`;
+                content += `   Status: ${row.status.toUpperCase()}\n`;
+                if(row.scannedAt) content += `   Entry: ${new Date(row.scannedAt).toLocaleTimeString()}\n`;
+                content += `   ID: ${row.id}\n`;
+                content += "----------------------------------------\n";
+            });
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            downloadFile(url, `${filename}.txt`);
+        }
+
+        // 5. JSON
+        function exportJSON(data, filename) {
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            downloadFile(url, `${filename}.json`);
+        }
+
+        // 6. DOC (Word) - using HTML Table method
+        function exportDOC(data, filename) {
+            let htmlBody = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>Guest List</title></head><body>
+                <h2>Guest List Export</h2>
+                <table border="1" style="border-collapse: collapse; width: 100%;">
+                    <tr style="background: #eee;">
+                        <th>Name</th><th>Age/Gender</th><th>Phone</th><th>Status</th>
+                    </tr>
+            `;
+            
+            data.forEach(row => {
+                htmlBody += `
+                    <tr>
+                        <td>${row.name}</td>
+                        <td>${row.age} / ${row.gender}</td>
+                        <td>${row.phone}</td>
+                        <td>${row.status}</td>
+                    </tr>
+                `;
+            });
+            
+            htmlBody += "</table></body></html>";
+            
+            const blob = new Blob(['\ufeff', htmlBody], {
+                type: 'application/msword'
+            });
+            const url = URL.createObjectURL(blob);
+            downloadFile(url, `${filename}.doc`);
+        }
+
+        // Helper
+        function downloadFile(uri, filename) {
             const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `guest_list_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`);
+            link.href = uri;
+            link.download = filename;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        });
+        }
+
 
         // --- SEARCH & FILTER LISTENERS ---
         searchInput.addEventListener('input', (e) => {
@@ -1614,7 +1835,7 @@
                 setTimeout(() => {
                     const phone = document.getElementById('ticketPhone').textContent.replace(/\D/g,'');
                     const name = document.getElementById('ticketName').textContent;
-                    const message = encodeURIComponent(`Hello ${name}, here is your VIP Entry Pass.\n(Please attach the downloaded ticket image here)\n*Keep this QR code ready at the entrance.*`);
+                    const message = encodeURIComponent(`Hello ${name}, here is your Entry Pass 🎫.\n*Keep this QR code ready at the entrance.*`);
                     window.location.href = `https://wa.me/${phone}?text=${message}`;
                     
                     btn.textContent = originalText;
@@ -1646,6 +1867,9 @@
         function updateSelectionCount() {
             const count = document.querySelectorAll('.ticket-checkbox:checked').length;
             selectionCountSpan.textContent = `(${count} selected)`;
+            
+            // Toggle Export Button Availability
+            exportTriggerBtn.disabled = count === 0;
         }
 
         selectBtn.addEventListener('click', () => {
@@ -1659,6 +1883,9 @@
                 document.querySelectorAll('.ticket-checkbox').forEach(cb => cb.checked = false);
                 selectAllCheckbox.checked = false;
                 updateSelectionCount();
+            } else {
+                // Ensure disabled state when entering mode with 0 selected
+                exportTriggerBtn.disabled = true;
             }
         });
 
@@ -1816,6 +2043,15 @@
                 setTimeout(() => osc.stop(), 300);
             });
         }
+    </script>
+    <script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("/service-worker.js")
+        .catch(err => console.log("SW failed:", err));
+    });
+  }
     </script>
 </body>
 </html>
