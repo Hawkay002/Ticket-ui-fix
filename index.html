@@ -63,6 +63,66 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* --- Toast Notification System --- */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: rgba(20, 20, 20, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-subtle);
+            border-left: 4px solid var(--accent-secondary);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            min-width: 300px;
+            max-width: 400px;
+            animation: slideIn 0.4s ease-out forwards;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toast-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 4px;
+            color: white;
+        }
+
+        .toast-msg {
+            font-size: 0.9rem;
+            color: #ccc;
+        }
+        
+        .toast-note {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        .toast.hiding {
+            animation: slideOut 0.4s ease-in forwards;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
         /* --- Login Overlay --- */
         #login-overlay {
             position: fixed;
@@ -474,10 +534,14 @@
             header h1 { font-size: 2.2rem; }
             .login-box { padding: 2rem; }
             .nav-btn { flex: 1; text-align: center; font-size: 0.9rem; }
+            #toast-container { right: 20px; left: 20px; bottom: 20px; }
         }
     </style>
 </head>
 <body>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
 
     <div id="login-overlay">
         <div class="login-box">
@@ -560,7 +624,7 @@
                             </div>
                         </div>
                         <button id="whatsappBtn" class="premium-btn" style="background: #25D366; color: white; border: none;" disabled>
-                            Save & Share via WhatsApp
+                            Save & Send via WhatsApp
                         </button>
                     </div>
                 </div>
@@ -667,6 +731,26 @@
         let currentUser = null;
         let ticketsUnsubscribe = null;
         let settingsUnsubscribe = null;
+        let autoCheckInterval = null;
+
+        // --- TOAST NOTIFICATIONS ---
+        function showToast(title, msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `
+                <div class="toast-title">${title}</div>
+                <div class="toast-msg">${msg}</div>
+                <div class="toast-note">Tip: You can always adjust the deadline in Config.</div>
+            `;
+            container.appendChild(toast);
+            
+            // Auto remove
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 400);
+            }, 5000); // Show for 5 seconds
+        }
 
         // --- DOM ELEMENTS ---
         const loginOverlay = document.getElementById('login-overlay');
@@ -685,12 +769,17 @@
                 loginOverlay.style.display = 'none';
                 appContent.style.display = 'block';
                 setupRealtimeListeners(user.uid);
+                
+                if(autoCheckInterval) clearInterval(autoCheckInterval);
+                autoCheckInterval = setInterval(checkAutoAbsent, 60000); 
+                
             } else {
                 currentUser = null;
                 loginOverlay.style.display = 'flex';
                 appContent.style.display = 'none';
                 if (ticketsUnsubscribe) ticketsUnsubscribe();
                 if (settingsUnsubscribe) settingsUnsubscribe();
+                if (autoCheckInterval) clearInterval(autoCheckInterval);
             }
         });
 
@@ -744,6 +833,7 @@
                 });
                 bookedTickets.sort((a, b) => b.createdAt - a.createdAt);
                 renderBookedTickets();
+                checkAutoAbsent(); 
             });
 
             const settingsRef = doc(db, APP_COLLECTION_ROOT, userId, 'settings', 'config');
@@ -751,11 +841,47 @@
                 if (docSnap.exists()) {
                     eventSettings = docSnap.data();
                     updateSettingsDisplay();
+                    checkAutoAbsent(); 
                 } else {
                     eventSettings = { name: '', place: '', deadline: '' };
                     updateSettingsDisplay();
                 }
             });
+        }
+        
+        // --- AUTO ABSENT LOGIC WITH TOAST ---
+        async function checkAutoAbsent() {
+            if (!eventSettings.deadline || !bookedTickets.length || !currentUser) return;
+
+            const deadlineTime = new Date(eventSettings.deadline).getTime();
+            const now = Date.now();
+            let markedAbsentCount = 0;
+            let revertedCount = 0;
+            const updates = [];
+
+            bookedTickets.forEach(ticket => {
+                const ticketRef = doc(db, APP_COLLECTION_ROOT, currentUser.uid, 'tickets', ticket.id);
+                
+                if (now > deadlineTime && ticket.status === 'coming-soon') {
+                    updates.push(updateDoc(ticketRef, { status: 'didnt-come' }));
+                    markedAbsentCount++;
+                }
+                
+                if (now < deadlineTime && ticket.status === 'didnt-come') {
+                     updates.push(updateDoc(ticketRef, { status: 'coming-soon' }));
+                     revertedCount++;
+                }
+            });
+
+            if (updates.length > 0) {
+                await Promise.all(updates);
+                if (markedAbsentCount > 0) {
+                    showToast('Deadline Reached', `${markedAbsentCount} guests automatically marked as absent.`);
+                }
+                if (revertedCount > 0) {
+                    showToast('Deadline Extended', `${revertedCount} guests reverted to 'Coming Soon'.`);
+                }
+            }
         }
 
         const navButtons = document.querySelectorAll('.nav-btn');
@@ -844,13 +970,21 @@
             bookedTickets.forEach(ticket => {
                 const tr = document.createElement('tr');
                 tr.dataset.id = ticket.id;
+                
+                // Status Logic with Time
+                let statusHtml = `<span class="status-badge status-${ticket.status}">${ticket.status.replace('-', ' ')}</span>`;
+                if(ticket.status === 'arrived' && ticket.scannedAt) {
+                    const timeStr = new Date(ticket.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    statusHtml += `<div style="font-size: 0.75rem; color: #888; margin-top: 4px; white-space: nowrap;">${timeStr}</div>`;
+                }
+
                 tr.innerHTML = `
                     <td><input type="checkbox" class="ticket-checkbox" style="transform: scale(1.2);"></td>
                     <td style="font-weight: 500; color: white;">${ticket.name}</td>
                     <td>${ticket.age} / ${ticket.gender}</td>
                     <td>${ticket.phone}</td>
                     <td style="font-family: monospace; font-size: 0.8rem; color: #888;">${ticket.id.substring(0, 8)}...</td>
-                    <td><span class="status-badge status-${ticket.status}">${ticket.status.replace('-', ' ')}</span></td>
+                    <td>${statusHtml}</td>
                     <td><button class="action-btn-small view-ticket-btn" data-id="${ticket.id}">View</button></td>
                 `;
                 bookedTicketsTable.appendChild(tr);
@@ -919,7 +1053,7 @@
                 setTimeout(() => {
                     const phone = document.getElementById('ticketPhone').textContent.replace(/\D/g,'');
                     const name = document.getElementById('ticketName').textContent;
-                    const message = encodeURIComponent(`Hello ${name}, here is your Entry Pass.🎫\n*Keep this QR code ready at the entrance.*`);
+                    const message = encodeURIComponent(`Hello ${name}, here is your Entry Pass.\n*Keep this QR code ready at the entrance.*`);
                     
                     // Use location.href to bypass pop-up blockers on mobile
                     window.location.href = `https://wa.me/${phone}?text=${message}`;
