@@ -26,6 +26,10 @@ let ticketsUnsubscribe = null;
 let settingsUnsubscribe = null;
 let autoCheckInterval = null;
 
+// --- STATE MANAGEMENT FOR SELECTIONS ---
+// This Set will persist selected IDs even when the table refreshes
+let selectedTicketIds = new Set(); 
+
 // --- BACKGROUND STARS LOGIC ---
 function createStars() {
     const container = document.getElementById('star-container');
@@ -49,7 +53,7 @@ createStars();
 let searchTerm = '';
 let currentFilter = 'all';
 let currentSort = 'newest';
-let currentFilteredTickets = []; // Used for export
+let currentFilteredTickets = []; // Used for export and select all
 
 // --- TOAST NOTIFICATIONS ---
 function showToast(title, msg) {
@@ -123,6 +127,7 @@ async function performSync() {
         await checkAutoAbsent();
         
         // 2. Refresh UI logic (filters, sorting, timestamps)
+        // This will now preserve checkboxes because we use selectedTicketIds
         renderBookedTickets();
     } catch (err) {
         console.error("Auto-sync error:", err);
@@ -145,7 +150,8 @@ refreshStatusIndicator.addEventListener('click', performSync);
 
 // --- EXPORT FUNCTIONALITY ---
 exportTriggerBtn.addEventListener('click', () => {
-    const count = document.querySelectorAll('.ticket-checkbox:checked').length;
+    // Check Set size instead of DOM elements
+    const count = selectedTicketIds.size;
     if(count === 0) return; 
 
     exportCountMsg.textContent = `Ready to export ${count} item${count !== 1 ? 's' : ''}.`;
@@ -162,14 +168,10 @@ confirmExportBtn.addEventListener('click', () => {
     const filename = exportFileName.value || 'guest_list';
     const format = exportFormat.value;
 
-    const selectedIds = [];
-    document.querySelectorAll('.ticket-checkbox:checked').forEach(cb => {
-        selectedIds.push(cb.closest('tr').dataset.id);
-    });
-
+    // Use the Set to filter the bookedTickets array
     let listToExport = [];
-    if (selectedIds.length > 0) {
-        listToExport = bookedTickets.filter(t => selectedIds.includes(t.id));
+    if (selectedTicketIds.size > 0) {
+        listToExport = bookedTickets.filter(t => selectedTicketIds.has(t.id));
     } else {
         exportModal.style.display = 'none';
         return alert("No data selected to export.");
@@ -330,7 +332,6 @@ onAuthStateChanged(auth, (user) => {
         // Clear old interval if exists
         if(autoCheckInterval) clearInterval(autoCheckInterval);
         // Set new interval for 15 SECONDS (15000ms) to sync
-        // This calls the performSync function which handles the visual spinning logic
         autoCheckInterval = setInterval(performSync, 15000);
     } else {
         currentUser = null;
@@ -560,8 +561,11 @@ function renderBookedTickets() {
             statusHtml += `<div style="font-size: 0.75rem; color: #888; margin-top: 4px; white-space: nowrap;">${timeStr}</div>`;
         }
 
+        // Determine if checked based on Set state
+        const isChecked = selectedTicketIds.has(ticket.id) ? 'checked' : '';
+
         tr.innerHTML = `
-            <td><input type="checkbox" class="ticket-checkbox" style="transform: scale(1.2);"></td>
+            <td><input type="checkbox" class="ticket-checkbox" style="transform: scale(1.2);" ${isChecked}></td>
             <td style="font-weight: 500; color: white;">${ticket.name}</td>
             <td>${ticket.age} / ${ticket.gender}</td>
             <td>${ticket.phone}</td>
@@ -572,6 +576,7 @@ function renderBookedTickets() {
         bookedTicketsTable.appendChild(tr);
     });
 
+    // Re-attach view listeners
     document.querySelectorAll('.view-ticket-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const ticket = bookedTickets.find(t => t.id === e.target.dataset.id);
@@ -582,8 +587,17 @@ function renderBookedTickets() {
         });
     });
 
+    // Attach checkbox listeners to update the Set
     document.querySelectorAll('.ticket-checkbox').forEach(box => {
-        box.addEventListener('change', updateSelectionCount);
+        box.addEventListener('change', (e) => {
+            const rowId = e.target.closest('tr').dataset.id;
+            if(e.target.checked) {
+                selectedTicketIds.add(rowId);
+            } else {
+                selectedTicketIds.delete(rowId);
+            }
+            updateSelectionCount();
+        });
     });
 }
 
@@ -665,9 +679,19 @@ const selectionCountSpan = document.getElementById('selectionCount');
 let isSelectionMode = false;
 
 function updateSelectionCount() {
-    const count = document.querySelectorAll('.ticket-checkbox:checked').length;
+    // Check Set size instead of counting DOM elements
+    const count = selectedTicketIds.size;
     selectionCountSpan.textContent = `(${count} selected)`;
     exportTriggerBtn.disabled = count === 0;
+    
+    // Also update "Select All" checkbox visual state
+    // If all visible tickets are in the set, check the box.
+    const allVisibleSelected = currentFilteredTickets.length > 0 && 
+                               currentFilteredTickets.every(t => selectedTicketIds.has(t.id));
+    
+    // Don't check if no tickets visible
+    if(currentFilteredTickets.length === 0) selectAllCheckbox.checked = false;
+    else selectAllCheckbox.checked = allVisibleSelected;
 }
 
 selectBtn.addEventListener('click', () => {
@@ -676,7 +700,8 @@ selectBtn.addEventListener('click', () => {
     selectAllContainer.style.display = isSelectionMode ? 'flex' : 'none'; 
     selectBtn.textContent = isSelectionMode ? 'Cancel' : 'Select';
     if(!isSelectionMode) {
-        document.querySelectorAll('.ticket-checkbox').forEach(cb => cb.checked = false);
+        selectedTicketIds.clear(); // Clear memory
+        renderBookedTickets(); // Re-render to clear checks
         selectAllCheckbox.checked = false;
         updateSelectionCount();
     } else {
@@ -684,16 +709,24 @@ selectBtn.addEventListener('click', () => {
     }
 });
 
+// UPDATED SELECT ALL LOGIC
 selectAllCheckbox.addEventListener('change', (e) => {
-    document.querySelectorAll('.ticket-checkbox').forEach(cb => cb.checked = e.target.checked);
+    const isChecked = e.target.checked;
+    
+    // Update memory Set
+    currentFilteredTickets.forEach(t => {
+        if(isChecked) selectedTicketIds.add(t.id);
+        else selectedTicketIds.delete(t.id);
+    });
+    
+    // Re-render table to reflect state (safest way to ensure all checks update)
+    renderBookedTickets();
     updateSelectionCount();
 });
 
 deleteBtn.addEventListener('click', () => {
-    const selectedIds = [];
-    document.querySelectorAll('.ticket-checkbox:checked').forEach(cb => {
-        selectedIds.push(cb.closest('tr').dataset.id);
-    });
+    // Convert Set to Array
+    const selectedIds = Array.from(selectedTicketIds);
 
     if(selectedIds.length === 0) return alert('Select tickets to delete');
 
@@ -716,7 +749,8 @@ confirmDeleteBtn.addEventListener('click', async () => {
         confirmModal.style.display = 'none';
         confirmDeleteBtn.textContent = "Delete";
         pendingDeleteIds = [];
-        selectBtn.click(); 
+        selectedTicketIds.clear(); // Clear selection after delete
+        selectBtn.click(); // Exit selection mode
     }
 });
 
