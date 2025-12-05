@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, query, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+// Added getDocs to imports for manual fetching
+import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, getDocs, query, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // ==========================================
 // FIREBASE CONFIGURATION
@@ -124,16 +125,27 @@ async function performSync() {
     const startTime = Date.now();
 
     try {
-        // 1. Check time-based statuses
+        // 1. FORCE FETCH DATA (The Fix for Real-time Lag)
+        // We use getDocs to pull the absolute latest data from the server
+        const ticketsRef = collection(db, APP_COLLECTION_ROOT, currentUser.uid, 'tickets');
+        const q = query(ticketsRef);
+        const snapshot = await getDocs(q);
+        
+        // Update our local list with fresh server data
+        bookedTickets = [];
+        snapshot.forEach((doc) => {
+            bookedTickets.push({ id: doc.id, ...doc.data() });
+        });
+
+        // 2. Check time-based statuses
         await checkAutoAbsent();
         
-        // 2. Refresh UI logic (filters, sorting, timestamps)
-        // This will now preserve checkboxes because we use selectedTicketIds
+        // 3. Refresh UI logic
         renderBookedTickets();
     } catch (err) {
         console.error("Auto-sync error:", err);
     } finally {
-        // 3. Ensure visual feedback lasts at least 1 second
+        // 4. Ensure visual feedback lasts at least 1 second
         const elapsed = Date.now() - startTime;
         const remaining = Math.max(0, 1000 - elapsed);
         
@@ -396,6 +408,7 @@ function setupRealtimeListeners(userId) {
     const ticketsRef = collection(db, APP_COLLECTION_ROOT, userId, 'tickets');
     const q = query(ticketsRef);
     
+    // Primary Listener (WebSockets)
     ticketsUnsubscribe = onSnapshot(q, (snapshot) => {
         bookedTickets = [];
         snapshot.forEach((doc) => {
@@ -423,6 +436,10 @@ async function checkAutoAbsent() {
 
     const deadlineTime = new Date(eventSettings.deadline).getTime();
     const now = Date.now();
+    
+    // Add a 60-second buffer to prevent fighting between devices with slightly different clocks
+    const BUFFER_MS = 60000;
+
     let markedAbsentCount = 0;
     let revertedCount = 0;
     const updates = [];
@@ -430,12 +447,14 @@ async function checkAutoAbsent() {
     bookedTickets.forEach(ticket => {
         const ticketRef = doc(db, APP_COLLECTION_ROOT, currentUser.uid, 'tickets', ticket.id);
         
-        if (now > deadlineTime && ticket.status === 'coming-soon') {
+        // Only mark absent if clearly past deadline + buffer
+        if (now > (deadlineTime + BUFFER_MS) && ticket.status === 'coming-soon') {
             updates.push(updateDoc(ticketRef, { status: 'absent' }));
             markedAbsentCount++;
         }
         
-        if (now < deadlineTime && ticket.status === 'absent') {
+        // Only revert if clearly before deadline - buffer
+        if (now < (deadlineTime - BUFFER_MS) && ticket.status === 'absent') {
             updates.push(updateDoc(ticketRef, { status: 'coming-soon' }));
             revertedCount++;
         }
@@ -644,7 +663,7 @@ document.getElementById('whatsappBtn').addEventListener('click', () => {
 
     html2canvas(ticketTemplate, {
         scale: 3,
-        backgroundColor: "#000000",
+        backgroundColor: null, // TRANSPARENT BACKGROUND FOR PNG
         useCORS: true
     }).then(canvas => {
         ticketTemplate.style.border = originalBorder;
