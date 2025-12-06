@@ -83,7 +83,6 @@ const emailInput = document.getElementById('emailInput');
 const passwordInput = document.getElementById('passwordInput');
 const togglePassword = document.getElementById('togglePassword');
 const loginButton = document.getElementById('loginButton');
-const biometricBtn = document.getElementById('biometricBtn');
 const authError = document.getElementById('auth-error');
 const userEmailDisplay = document.getElementById('userEmailDisplay');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -399,9 +398,6 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- AUTHENTICATION LOGIC ---
-
-// 1. Password Login + Save Credential
 loginButton.addEventListener('click', async () => {
     const email = emailInput.value;
     const password = passwordInput.value;
@@ -416,21 +412,6 @@ loginButton.addEventListener('click', async () => {
 
     try {
         await signInWithEmailAndPassword(auth, email, password);
-        
-        // Save credential to browser password manager (enables biometric later)
-        if (window.PasswordCredential) {
-            try {
-                const cred = new PasswordCredential({
-                    id: email,
-                    password: password,
-                    name: email, 
-                });
-                await navigator.credentials.store(cred);
-            } catch (e) {
-                console.log("Credential store not supported/failed", e);
-            }
-        }
-
     } catch (error) {
         console.error("Login failed:", error);
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
@@ -443,32 +424,6 @@ loginButton.addEventListener('click', async () => {
         loginButton.disabled = false;
     }
 });
-
-// 2. Biometric / Saved Credential Login
-if (biometricBtn) {
-    biometricBtn.addEventListener('click', async () => {
-        try {
-            // This triggers the native browser prompt (Fingerprint/FaceID)
-            const cred = await navigator.credentials.get({
-                password: true,
-                mediation: 'optional'
-            });
-
-            if (cred && cred.type === 'password') {
-                authError.style.display = 'none';
-                biometricBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Verifying...';
-                await signInWithEmailAndPassword(auth, cred.id, cred.password);
-            } else {
-                showError("No saved credentials found.");
-            }
-        } catch (err) {
-            console.error("Biometric login error", err);
-            showError("Authentication failed or cancelled.");
-        } finally {
-            biometricBtn.innerHTML = '<i class="fa-solid fa-fingerprint" style="margin-right: 8px;"></i> Login with Biometrics';
-        }
-    });
-}
 
 logoutBtn.addEventListener('click', () => {
     signOut(auth);
