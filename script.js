@@ -121,6 +121,30 @@ if (togglePassword && passwordInput) {
     });
 }
 
+// --- CONNECTION STATUS MONITORING ---
+function updateOnlineStatus() {
+    const syncDot = document.querySelector('.sync-dot');
+    if (!syncDot) return;
+
+    if (navigator.onLine) {
+        syncDot.classList.remove('offline');
+    } else {
+        syncDot.classList.add('offline');
+        showToast('Connection Lost', 'You are currently offline.');
+    }
+}
+
+window.addEventListener('online', () => {
+    updateOnlineStatus();
+    showToast('Back Online', 'Connection restored.');
+    performSync(); // Fetch latest data when reconnection occurs
+});
+window.addEventListener('offline', updateOnlineStatus);
+
+// Initial Status Check
+updateOnlineStatus();
+
+
 // --- REFRESH / SYNC LOGIC ---
 async function performSync() {
     if(!currentUser) return;
