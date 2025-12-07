@@ -114,7 +114,9 @@ To enable premium audio feedback, add these two files to your root folder (next 
 
 ```text
 Ticket-backend/
-├── index.html          # Core app file containing the UI and logic
+├── index.html          # Core app
+├── style.css           # UI
+├── script.js           # Logic
 ├── success.mp3         # Optional sound played on a valid scan
 ├── error.mp3           # Optional sound played on an invalid scan
 ├── LICENSE             # Apache License 2.0
