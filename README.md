@@ -184,4 +184,4 @@ Ticket-backend/
 
 ## 📄 License
 
-Distributed under the [**Apache License 2.0**](/LICENSE).
+Distributed under the [**Apache License 2.0**](https://github.com/Hawkay002/Ticket-backend/blob/main/LICENSE).
