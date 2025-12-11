@@ -8,8 +8,9 @@
     --accent-color: #ffffff;
     --accent-secondary: #3b82f6;
     --success-green: #10b981;
+    --danger-red: #ef4444;
     --glass-backdrop: blur(20px);
-    --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); /* Sped up slightly for snappier selection */
+    --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -103,7 +104,7 @@ button {
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
-    transition: var(--transition); /* Uses the faster transition defined in :root */
+    transition: var(--transition);
 }
 
 .user-card:hover {
@@ -112,21 +113,26 @@ button {
 }
 
 .user-card.active-selection {
-    background: rgba(59, 130, 246, 0.15); /* Slightly stronger for clarity */
+    background: rgba(59, 130, 246, 0.15);
     border-color: var(--accent-secondary);
     box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
-    transform: translateX(5px); /* Adds visual feedback that it is selected */
+    transform: translateX(5px);
 }
 
 .user-card-info {
     display: flex;
     flex-direction: column;
+    overflow: hidden; /* Ensures long emails don't break layout */
+    margin-right: 15px; /* Spacing from status indicator */
 }
 
 .user-card-email {
     color: white;
     font-weight: 500;
     font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .user-card-role {
@@ -142,11 +148,13 @@ button {
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    padding: 4px 10px;
+    padding: 6px 12px; /* Slightly increased padding */
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.05);
     color: #666;
     border: 1px solid transparent;
+    flex-shrink: 0;      /* Prevents squishing */
+    white-space: nowrap; /* Prevents text wrapping */
 }
 
 .user-status-indicator.online {
@@ -161,6 +169,8 @@ button {
     background-color: currentColor;
     border-radius: 50%;
     animation: pulseDot 1.5s infinite;
+    flex-shrink: 0; /* Prevents dot from becoming an oval */
+    display: inline-block;
 }
 
 @keyframes pulseDot {
@@ -495,7 +505,6 @@ button {
     color: white;
 }
 
-
 select.premium-input option {
     background-color: #1a1a1a;
     color: white;
@@ -526,6 +535,32 @@ select.premium-input option {
 .premium-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+/* DANGER MODE (For Lock Button) */
+.premium-btn.danger-mode {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger-red);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.premium-btn.danger-mode:hover {
+    background: var(--danger-red);
+    color: white;
+    box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
+}
+
+/* SUCCESS MODE (For Unlock Button) */
+.premium-btn.success-mode {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-green);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.premium-btn.success-mode:hover {
+    background: var(--success-green);
+    color: white;
+    box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
 }
 
 /* --- Header & Nav --- */
@@ -1078,6 +1113,7 @@ tr:hover td {
     transition: var(--transition);
     color: #ccc;
     font-size: 0.95rem;
+    border: 1px solid transparent; /* Prepare for border change */
 }
 
 .checkbox-label:hover {
@@ -1085,10 +1121,17 @@ tr:hover td {
     color: white;
 }
 
+/* MARK LOCKED TABS IN RED: Highlighting checked boxes in the admin panel */
+.checkbox-label:has(input:checked) {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: var(--danger-red);
+}
+
 .lock-checkbox, .remote-lock-checkbox {
     margin-right: 12px;
     transform: scale(1.3);
-    accent-color: #ef4444;
+    accent-color: var(--danger-red); /* Red checkbox checkmark */
 }
 
 .close-modal-btn {
