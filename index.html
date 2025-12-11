@@ -20,11 +20,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- Export Libraries -->
-    <!-- SheetJS for Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- jsPDF for PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <!-- jsPDF AutoTable for PDF Tables -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <!-- QR Code & Scanner Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -60,11 +57,35 @@
     <div id="admin-lock-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>Secure Remote User</h3>
-            <p>You are about to lock tabs for <span id="lock-target-email" style="color: var(--accent-secondary);">--</span>.</p>
-            <input type="password" id="adminLockPassword" class="premium-input" placeholder="Confirm Admin Password" style="text-align: center;">
+            <p>You are about to <span id="lock-modal-action-text">modify access</span> for <span id="lock-target-email" style="color: var(--accent-secondary);">--</span>.</p>
+            
+            <div class="password-wrapper">
+                <input type="password" id="adminLockPassword" class="premium-input" placeholder="Confirm Admin Password" style="text-align: center;">
+                <i class="fa-regular fa-eye password-toggle-icon" id="toggleAdminLockPassword"></i>
+            </div>
+
             <div class="modal-actions">
                 <button id="cancelAdminLock" class="modal-btn secondary">Cancel</button>
-                <button id="confirmAdminLock" class="modal-btn success">Sync & Lock</button>
+                <button id="confirmAdminLock" class="modal-btn danger">Sync & Lock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Factory Reset Password Modal -->
+    <div id="factory-reset-modal" class="modal-overlay">
+        <div class="modal-box" style="border: 1px solid #ef4444; box-shadow: 0 20px 60px rgba(239, 68, 68, 0.2);">
+            <h3 style="color: #ef4444;">⚠ DANGER ZONE</h3>
+            <p>This will <strong>PERMANENTLY ERASE</strong> all tickets, settings, and lock configurations.</p>
+            <!-- Hint removed as requested -->
+            
+            <div class="password-wrapper">
+                <input type="password" id="factoryResetPasswordInput" class="premium-input" placeholder="Enter Reset Password" style="text-align: center; border-color: #ef4444;">
+                <i class="fa-regular fa-eye password-toggle-icon" id="toggleFactoryPassword"></i>
+            </div>
+
+            <div class="modal-actions">
+                <button id="cancelFactoryReset" class="modal-btn secondary">Cancel</button>
+                <button id="confirmFactoryReset" class="modal-btn danger" style="background: #ef4444;">NUKE DATABASE</button>
             </div>
         </div>
     </div>
@@ -389,10 +410,14 @@
 
                         <!-- Configuration Area for Selected User -->
                         <div id="user-lock-config-area" style="display: none; background: rgba(255,255,255,0.05); padding: 20px; border-radius: 16px; margin-top: 20px; border: 1px solid var(--border-subtle);">
-                            <h4 style="color: white; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                            
+                            <!-- UPDATED SECTION START -->
+                            <h4 style="color: white; margin-bottom: 5px; display: flex; align-items: center; gap: 10px;">
                                 <i class="fa-solid fa-user-lock"></i> 
-                                Configuring: <span id="selected-user-email" style="color: var(--accent-secondary);">--</span>
+                                Configuring:
                             </h4>
+                            <div id="selected-user-email" style="color: var(--accent-secondary); font-size: 0.85rem; font-family: monospace; word-break: break-all; margin-bottom: 20px; padding-left: 28px;">--</div>
+                            <!-- UPDATED SECTION END -->
                             
                             <div style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
                                 <label class="checkbox-label">
@@ -406,8 +431,16 @@
                                 </label>
                             </div>
 
-                            <button id="triggerLockModalBtn" class="premium-btn" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
-                                <i class="fa-solid fa-tower-broadcast"></i> Sync Settings to Devices
+                            <!-- Modified Button: Removing inline styles to allow class-based color toggling -->
+                            <button id="triggerLockModalBtn" class="premium-btn danger-mode">
+                                <i class="fa-solid fa-tower-broadcast"></i> <span id="triggerBtnText">Sync & Lock</span>
+                            </button>
+                        </div>
+
+                        <!-- NEW FACTORY RESET BUTTON -->
+                        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-subtle); text-align: center;">
+                            <button id="factoryResetBtn" class="premium-btn" style="background: transparent; border: 1px solid #ef4444; color: #ef4444; width: auto; display: inline-flex; font-size: 0.8rem; align-items: center; justify-content: center;">
+                                <i class="fa-solid fa-trash-can" style="margin-right: 8px;"></i> Factory Reset Database
                             </button>
                         </div>
                     </div>
